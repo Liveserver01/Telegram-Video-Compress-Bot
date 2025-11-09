@@ -1,0 +1,53 @@
+#-------------------------------------------------------------------------------
+# Name:        unzip.yml
+# Purpose:
+#
+# Author:      Virendra
+#
+# Created:     09-11-2025
+# Copyright:   (c) Virendra 2025
+# Licence:     <your licence>
+#-------------------------------------------------------------------------------
+
+name: Unzip and commit
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Find a zip file
+        id: findzip
+        run: |
+          ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n1 || true)
+          echo "zipfile=$ZIP" >> $GITHUB_OUTPUT
+
+      - name: Unzip and commit
+        if: steps.findzip.outputs.zipfile != ''
+        run: |
+          echo "Unzipping ${{ steps.findzip.outputs.zipfile }}"
+          unzip -q "${{ steps.findzip.outputs.zipfile }}" -d temp_unzip
+          cp -r temp_unzip/* .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          # remove the zip from index (so it won't remain)
+          git rm --cached "${{ steps.findzip.outputs.zipfile }}" || true
+          git commit -m "Unzipped ${{ steps.findzip.outputs.zipfile }} and added files" || echo "No changes to commit"
+          git push origin HEAD:main
